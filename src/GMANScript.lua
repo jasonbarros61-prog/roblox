@@ -1,15 +1,13 @@
--- GMAN Boss Script: Script inside "GMAN" model in ServerStorage
+-- GMANScript: Script inside "GMAN" model in ServerStorage
 
 local npc      = script.Parent
 local humanoid = npc:WaitForChild("Humanoid")
 local rootPart = npc:WaitForChild("HumanoidRootPart")
-local head     = npc:FindFirstChild("Head")
+local head     = npc:FindFirstChild("Head") or npc:FindFirstChild("Head", true)
 
--- Unanchor ALL parts so GMAN can actually move
+-- Unanchor ALL parts so GMAN can move
 for _, part in ipairs(npc:GetDescendants()) do
-	if part:IsA("BasePart") then
-		part.Anchored = false
-	end
+	if part:IsA("BasePart") then part.Anchored = false end
 end
 
 -- Stats
@@ -22,7 +20,7 @@ local ATTACK_RANGE    = 7
 local ATTACK_COOLDOWN = 2.5
 local TOKEN_REWARD    = 300
 
--- Boss health bar BillboardGui (floats above GMAN)
+-- Boss health bar (blue BillboardGui above GMAN)
 local billboard = Instance.new("BillboardGui")
 billboard.Size        = UDim2.new(0, 340, 0, 90)
 billboard.StudsOffset = Vector3.new(0, 5, 0)
@@ -102,109 +100,28 @@ humanoid.HealthChanged:Connect(function(health)
 	end
 end)
 
--- Yellow laser eyes
-local LEFT_EYE_OFFSET  = CFrame.new(-0.22,  0.08, -0.52)
-local RIGHT_EYE_OFFSET = CFrame.new( 0.22,  0.08, -0.52)
-local LASER_RANGE           = 50
-local LASER_DAMAGE          = 6
-local LASER_DAMAGE_INTERVAL = 0.4
+-- Flush ProximityPrompt (attach to rootPart so it always works even if Head name differs)
+local flushTarget = head or rootPart
+local prompt = Instance.new("ProximityPrompt")
+prompt.ActionText = "Flush GMAN"
+prompt.ObjectText = "☠ BOSS"
+prompt.HoldDuration = 1.5
+prompt.MaxActivationDistance = 10
+prompt.Parent = flushTarget
 
-local function makeEyeGlow(offset)
-	local glow = Instance.new("Part")
-	glow.Name = "EyeGlow" glow.Size = Vector3.new(0.18,0.18,0.18)
-	glow.Shape = Enum.PartType.Ball glow.Material = Enum.Material.Neon
-	glow.Color = Color3.fromRGB(255,220,0) glow.CastShadow = false
-	glow.CanCollide = false glow.Anchored = false
-	glow.CFrame = head.CFrame * offset glow.Parent = npc
-	local pl = Instance.new("PointLight")
-	pl.Color = Color3.fromRGB(255,220,0) pl.Brightness = 4 pl.Range = 8 pl.Parent = glow
-	local w = Instance.new("WeldConstraint")
-	w.Part0 = head w.Part1 = glow w.Parent = glow
-	return glow
-end
-
-local leftEyeGlow  = makeEyeGlow(LEFT_EYE_OFFSET)
-local rightEyeGlow = makeEyeGlow(RIGHT_EYE_OFFSET)
-
-local function makeTargetPart(eyePart)
-	local t = Instance.new("Part")
-	t.Size = Vector3.new(0.05,0.05,0.05) t.Anchored = true
-	t.CanCollide = false t.Transparency = 1
-	t.CFrame = eyePart.CFrame * CFrame.new(0,0,-LASER_RANGE)
-	t.Parent = npc return t
-end
-
-local leftTarget  = makeTargetPart(leftEyeGlow)
-local rightTarget = makeTargetPart(rightEyeGlow)
-
-local function makeBeam(eyePart, targetPart)
-	local srcA = Instance.new("Attachment") srcA.Parent = eyePart
-	local tgtA = Instance.new("Attachment") tgtA.Parent = targetPart
-	local beam = Instance.new("Beam")
-	beam.Attachment0 = srcA beam.Attachment1 = tgtA
-	beam.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255,240,50)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255,160,0)),
-	})
-	beam.Width0 = 0.12 beam.Width1 = 0.04
-	beam.LightEmission = 1 beam.LightInfluence = 0
-	beam.FaceCamera = true beam.Segments = 1
-	beam.Transparency = NumberSequence.new(0)
-	beam.Parent = eyePart
-end
-
-makeBeam(leftEyeGlow, leftTarget)
-makeBeam(rightEyeGlow, rightTarget)
-
-local rayParams = RaycastParams.new()
-rayParams.FilterDescendantsInstances = {npc}
-rayParams.FilterType = Enum.RaycastFilterType.Exclude
-local lastLaserDmg = 0
-
-task.spawn(function()
-	while humanoid.Health > 0 do
-		task.wait(0.06)
-		if not head or not head.Parent then break end
-		local lookDir = head.CFrame.LookVector
-		local lPos = leftEyeGlow.CFrame.Position
-		local lHit = workspace:Raycast(lPos, lookDir * LASER_RANGE, rayParams)
-		leftTarget.CFrame = CFrame.new(lHit and lHit.Position or (lPos + lookDir * LASER_RANGE))
-		local rPos = rightEyeGlow.CFrame.Position
-		local rHit = workspace:Raycast(rPos, lookDir * LASER_RANGE, rayParams)
-		rightTarget.CFrame = CFrame.new(rHit and rHit.Position or (rPos + lookDir * LASER_RANGE))
-		local hit = lHit or rHit
-		if hit then
-			local char   = hit.Instance and hit.Instance:FindFirstAncestorOfClass("Model")
-			local plrHum = char and char:FindFirstChildOfClass("Humanoid")
-			local now = tick()
-			if plrHum and plrHum.Health > 0 and (now - lastLaserDmg) >= LASER_DAMAGE_INTERVAL then
-				lastLaserDmg = now
-				plrHum:TakeDamage(LASER_DAMAGE)
-			end
+prompt.Triggered:Connect(function(player)
+	local tv = player:FindFirstChild("Tokens")
+	if tv then tv.Value += TOKEN_REWARD end
+	humanoid.Health = 0
+	task.delay(0.3, function()
+		for _, part in ipairs(npc:GetDescendants()) do
+			if part:IsA("BasePart") then part.Anchored = true end
 		end
-	end
-end)
-
--- Flush ProximityPrompt
-if head then
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Flush GMAN" prompt.ObjectText = "☠ BOSS"
-	prompt.HoldDuration = 1.5 prompt.MaxActivationDistance = 8
-	prompt.Parent = head
-	prompt.Triggered:Connect(function(player)
-		local tv = player:FindFirstChild("Tokens")
-		if tv then tv.Value += TOKEN_REWARD end
-		humanoid.Health = 0
-		task.delay(0.3, function()
-			for _, part in ipairs(npc:GetDescendants()) do
-				if part:IsA("BasePart") then part.Anchored = true end
-			end
-		end)
-		task.delay(2, function()
-			if npc and npc.Parent then npc:Destroy() end
-		end)
 	end)
-end
+	task.delay(2, function()
+		if npc and npc.Parent then npc:Destroy() end
+	end)
+end)
 
 -- Melee attack
 local lastAttack = 0
@@ -212,12 +129,14 @@ local function attackNearest()
 	local now = tick()
 	if now - lastAttack < ATTACK_COOLDOWN then return end
 	for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-		local char = player.Character if not char then continue end
+		local char  = player.Character if not char then continue end
 		local cRoot = char:FindFirstChild("HumanoidRootPart")
 		local cHum  = char:FindFirstChildOfClass("Humanoid")
 		if not cRoot or not cHum or cHum.Health <= 0 then continue end
 		if (rootPart.Position - cRoot.Position).Magnitude <= ATTACK_RANGE then
-			lastAttack = now cHum:TakeDamage(DAMAGE) break
+			lastAttack = now
+			cHum:TakeDamage(DAMAGE)
+			break
 		end
 	end
 end
@@ -225,7 +144,7 @@ end
 local function getNearestPlayer()
 	local nearest, nearestDist = nil, math.huge
 	for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-		local char = player.Character if not char then continue end
+		local char  = player.Character if not char then continue end
 		local cRoot = char:FindFirstChild("HumanoidRootPart")
 		local cHum  = char:FindFirstChildOfClass("Humanoid")
 		if not cRoot or not cHum or cHum.Health <= 0 then continue end
