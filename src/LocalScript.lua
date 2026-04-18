@@ -188,8 +188,8 @@ tokenLabel.Parent = tokenBar
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 
 local hpBarFrame = Instance.new("Frame")
-hpBarFrame.Size             = UDim2.new(0, 360, 0, 44)
-hpBarFrame.Position         = UDim2.new(0.5, -180, 1, -70)
+hpBarFrame.Size             = UDim2.new(0, 260, 0, 34)
+hpBarFrame.Position         = UDim2.new(0.5, -130, 1, -55)
 hpBarFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 hpBarFrame.BackgroundTransparency = 0.2
 hpBarFrame.Visible          = false

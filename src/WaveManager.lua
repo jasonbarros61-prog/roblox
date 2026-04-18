@@ -20,6 +20,11 @@ local morphConfirmed = makeEvent("MorphConfirmed")
 local returnToLobby  = makeEvent("ReturnToLobby")
 local bossSpawned    = makeEvent("BossSpawned")
 
+-- Disable default Roblox health regen for all future spawns
+local StarterCharacterScripts = game:GetService("StarterCharacterScripts")
+local defaultRegenScript = StarterCharacterScripts:FindFirstChild("Health")
+if defaultRegenScript then defaultRegenScript:Destroy() end
+
 -- GameData
 local gameData = ReplicatedStorage:FindFirstChild("GameData")
 if not gameData then
@@ -38,17 +43,6 @@ if not timeValue then
 	timeValue.Name = "TimeLeft" timeValue.Value = 180 timeValue.Parent = gameData
 end
 
--- Tokens
-local playerTokens = {}
-Players.PlayerAdded:Connect(function(player)
-	playerTokens[player] = 0
-	local tv = Instance.new("NumberValue")
-	tv.Name = "Tokens" tv.Value = 0 tv.Parent = player
-end)
-Players.PlayerRemoving:Connect(function(player)
-	playerTokens[player] = nil
-end)
-
 -- ── Detailed overhead HP bar (visible to all players) ─────────────────────────
 local function createOverheadHP(character, player)
 	local head = character:WaitForChild("Head", 5)
@@ -56,7 +50,6 @@ local function createOverheadHP(character, player)
 	local humanoid = character:WaitForChild("Humanoid", 5)
 	if not humanoid then return end
 
-	-- remove any old one
 	local old = head:FindFirstChild("OverheadHP")
 	if old then old:Destroy() end
 
@@ -68,7 +61,6 @@ local function createOverheadHP(character, player)
 	bb.MaxDistance   = 60
 	bb.Parent        = head
 
-	-- outer red glow ring
 	local glow = Instance.new("Frame")
 	glow.Size                   = UDim2.new(1, 8, 1, 8)
 	glow.Position               = UDim2.new(0, -4, 0, -4)
@@ -79,7 +71,6 @@ local function createOverheadHP(character, player)
 	glow.Parent                 = bb
 	Instance.new("UICorner", glow).CornerRadius = UDim.new(0, 12)
 
-	-- main background
 	local bg = Instance.new("Frame")
 	bg.Size             = UDim2.new(1, 0, 1, 0)
 	bg.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
@@ -92,7 +83,6 @@ local function createOverheadHP(character, player)
 	bgStroke.Color     = Color3.fromRGB(200, 0, 0)
 	bgStroke.Thickness = 2
 
-	-- heart icon
 	local heartIcon = Instance.new("TextLabel")
 	heartIcon.Size               = UDim2.new(0, 20, 0, 20)
 	heartIcon.Position           = UDim2.new(0, 5, 0, 4)
@@ -104,7 +94,6 @@ local function createOverheadHP(character, player)
 	heartIcon.ZIndex             = 4
 	heartIcon.Parent             = bg
 
-	-- player name
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Size               = UDim2.new(1, -30, 0, 20)
 	nameLabel.Position           = UDim2.new(0, 28, 0, 4)
@@ -117,7 +106,6 @@ local function createOverheadHP(character, player)
 	nameLabel.ZIndex             = 4
 	nameLabel.Parent             = bg
 
-	-- divider line
 	local divider = Instance.new("Frame")
 	divider.Size             = UDim2.new(1, -10, 0, 1)
 	divider.Position         = UDim2.new(0, 5, 0, 26)
@@ -126,7 +114,6 @@ local function createOverheadHP(character, player)
 	divider.ZIndex           = 3
 	divider.Parent           = bg
 
-	-- HP bar track
 	local hpTrack = Instance.new("Frame")
 	hpTrack.Size             = UDim2.new(1, -10, 0, 18)
 	hpTrack.Position         = UDim2.new(0, 5, 0, 30)
@@ -138,7 +125,6 @@ local function createOverheadHP(character, player)
 	local trackStroke = Instance.new("UIStroke", hpTrack)
 	trackStroke.Color = Color3.fromRGB(80, 0, 0) trackStroke.Thickness = 1
 
-	-- HP fill
 	local hpFill = Instance.new("Frame")
 	hpFill.Size             = UDim2.new(1, 0, 1, 0)
 	hpFill.BackgroundColor3 = Color3.fromRGB(200, 15, 15)
@@ -147,7 +133,6 @@ local function createOverheadHP(character, player)
 	hpFill.Parent           = hpTrack
 	Instance.new("UICorner", hpFill).CornerRadius = UDim.new(0, 6)
 
-	-- top shimmer stripe
 	local shimmer = Instance.new("Frame")
 	shimmer.Size                   = UDim2.new(1, 0, 0.45, 0)
 	shimmer.BackgroundColor3       = Color3.new(1, 1, 1)
@@ -157,7 +142,6 @@ local function createOverheadHP(character, player)
 	shimmer.Parent                 = hpFill
 	Instance.new("UICorner", shimmer).CornerRadius = UDim.new(0, 6)
 
-	-- HP numbers
 	local hpNumbers = Instance.new("TextLabel")
 	hpNumbers.Size               = UDim2.new(1, -10, 0, 16)
 	hpNumbers.Position           = UDim2.new(0, 5, 0, 51)
@@ -169,7 +153,6 @@ local function createOverheadHP(character, player)
 	hpNumbers.ZIndex             = 4
 	hpNumbers.Parent             = bg
 
-	-- update on health change
 	local function refresh(health)
 		local pct = math.clamp(health / humanoid.MaxHealth, 0, 1)
 		hpFill.Size     = UDim2.new(pct, 0, 1, 0)
@@ -193,14 +176,32 @@ local function createOverheadHP(character, player)
 	humanoid.HealthChanged:Connect(refresh)
 end
 
--- Player 1000 HP + overhead bar
+-- All player setup in one place (works for both new and existing Studio players)
+local gameRunning = false
+
 local function setupPlayer(player)
+	-- Create Tokens if not already present
+	if not player:FindFirstChild("Tokens") then
+		local tv = Instance.new("NumberValue")
+		tv.Name = "Tokens" tv.Value = 0 tv.Parent = player
+	end
+
 	player.CharacterAdded:Connect(function(character)
+		-- Destroy any regen script that got cloned into the character
+		local regenClone = character:FindFirstChild("Health")
+		if regenClone then regenClone:Destroy() end
+
 		local humanoid = character:WaitForChild("Humanoid")
 		humanoid.MaxHealth = 1000
 		humanoid.Health    = 1000
-		task.wait() -- let health apply before drawing bar
+		task.wait()
 		createOverheadHP(character, player)
+
+		humanoid.Died:Connect(function()
+			task.wait(2)
+			gameRunning = false
+			player:LoadCharacter()
+		end)
 	end)
 end
 
@@ -235,7 +236,6 @@ local WAVES = {
 }
 
 local activeToilets = {}
-local gameRunning   = false
 
 local function clearToilets()
 	for _, npc in ipairs(activeToilets) do
@@ -251,7 +251,6 @@ local function spawnToilet(template, spawnCF)
 	local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart")
 	if root then
 		npc:PivotTo(spawnCF)
-		print("[WaveManager] Spawned", npc.Name, "at", spawnCF.Position)
 	else
 		warn("[WaveManager] No root part on", npc.Name)
 	end
@@ -282,7 +281,8 @@ local function startGame(player)
 			timeValue.Value -= 1
 		end
 		if gameRunning and timeValue.Value <= 0 then
-			gameRunning = false clearToilets()
+			gameRunning = false
+			clearToilets()
 			waveValue.Value = 1 timeValue.Value = 180
 			for _, p in ipairs(Players:GetPlayers()) do p:LoadCharacter() end
 		end
@@ -316,20 +316,10 @@ gameStarted.OnServerEvent:Connect(function(player)
 end)
 
 returnToLobby.OnServerEvent:Connect(function(player)
-	gameRunning = false clearToilets()
+	gameRunning = false
+	clearToilets()
 	waveValue.Value = 1 timeValue.Value = 180
 	player:LoadCharacter()
-end)
-
-Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(character)
-		character:WaitForChild("Humanoid").Died:Connect(function()
-			task.wait(2)
-			gameRunning = false clearToilets()
-			waveValue.Value = 1 timeValue.Value = 180
-			player:LoadCharacter()
-		end)
-	end)
 end)
 
 print("[WaveManager] Ready")
