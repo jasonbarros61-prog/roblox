@@ -13,6 +13,7 @@ local buyMorph       = ReplicatedStorage:WaitForChild("BuyMorph",       15)
 local equipMorph     = ReplicatedStorage:WaitForChild("EquipMorph",     15)
 local morphConfirmed = ReplicatedStorage:WaitForChild("MorphConfirmed", 15)
 local returnToLobby  = ReplicatedStorage:WaitForChild("ReturnToLobby",  15)
+local bossSpawned    = ReplicatedStorage:WaitForChild("BossSpawned",    15)
 
 if not gameStarted then
 	warn("[LocalScript] RemoteEvents not found in ReplicatedStorage — check WaveManager loaded")
@@ -181,6 +182,193 @@ tokenLabel.TextScaled = true
 tokenLabel.Font = Enum.Font.GothamBold
 tokenLabel.ZIndex = 6
 tokenLabel.Parent = tokenBar
+
+-- ── PLAYER HEALTH BAR (black/red, bottom-centre) ─────────────────────────────
+-- hide Roblox default health bar
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+
+local hpBarFrame = Instance.new("Frame")
+hpBarFrame.Size             = UDim2.new(0, 360, 0, 44)
+hpBarFrame.Position         = UDim2.new(0.5, -180, 1, -70)
+hpBarFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+hpBarFrame.BackgroundTransparency = 0.2
+hpBarFrame.Visible          = false
+hpBarFrame.ZIndex           = 5
+hpBarFrame.Parent           = screenGui
+Instance.new("UICorner", hpBarFrame).CornerRadius = UDim.new(0, 10)
+
+local hpStroke = Instance.new("UIStroke", hpBarFrame)
+hpStroke.Color     = Color3.fromRGB(180, 0, 0)
+hpStroke.Thickness = 2
+
+-- skull icon
+local hpSkull = Instance.new("TextLabel")
+hpSkull.Size               = UDim2.new(0, 30, 1, 0)
+hpSkull.Position           = UDim2.new(0, 4, 0, 0)
+hpSkull.BackgroundTransparency = 1
+hpSkull.Text               = "❤"
+hpSkull.TextColor3         = Color3.fromRGB(220, 0, 0)
+hpSkull.TextScaled         = true
+hpSkull.Font               = Enum.Font.GothamBold
+hpSkull.ZIndex             = 7
+hpSkull.Parent             = hpBarFrame
+
+-- track
+local hpTrack = Instance.new("Frame")
+hpTrack.Size             = UDim2.new(1, -70, 0, 16)
+hpTrack.Position         = UDim2.new(0, 38, 0, 8)
+hpTrack.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+hpTrack.BorderSizePixel  = 0
+hpTrack.ZIndex           = 6
+hpTrack.Parent           = hpBarFrame
+Instance.new("UICorner", hpTrack).CornerRadius = UDim.new(0, 6)
+
+local hpFill = Instance.new("Frame")
+hpFill.Size             = UDim2.new(1, 0, 1, 0)
+hpFill.BackgroundColor3 = Color3.fromRGB(200, 20, 20)
+hpFill.BorderSizePixel  = 0
+hpFill.ZIndex           = 7
+hpFill.Parent           = hpTrack
+Instance.new("UICorner", hpFill).CornerRadius = UDim.new(0, 6)
+
+-- shimmer
+local hpShimmer = Instance.new("Frame")
+hpShimmer.Size             = UDim2.new(0.4, 0, 1, 0)
+hpShimmer.BackgroundColor3 = Color3.new(1, 1, 1)
+hpShimmer.BackgroundTransparency = 0.75
+hpShimmer.BorderSizePixel  = 0
+hpShimmer.ZIndex           = 8
+hpShimmer.Parent           = hpFill
+Instance.new("UICorner", hpShimmer).CornerRadius = UDim.new(0, 6)
+
+local hpText = Instance.new("TextLabel")
+hpText.Size               = UDim2.new(1, -70, 0, 14)
+hpText.Position           = UDim2.new(0, 38, 1, -22)
+hpText.BackgroundTransparency = 1
+hpText.Text               = "1000 / 1000"
+hpText.TextColor3         = Color3.fromRGB(255, 160, 160)
+hpText.TextScaled         = true
+hpText.Font               = Enum.Font.Gotham
+hpText.ZIndex             = 7
+hpText.Parent             = hpBarFrame
+
+local function updateHealthBar(health, maxHealth)
+	local pct = math.clamp(health / maxHealth, 0, 1)
+	hpFill.Size = UDim2.new(pct, 0, 1, 0)
+	hpText.Text = math.ceil(health) .. " / " .. math.ceil(maxHealth)
+	if pct < 0.25 then
+		hpFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+	elseif pct < 0.5 then
+		hpFill.BackgroundColor3 = Color3.fromRGB(200, 20, 20)
+	else
+		hpFill.BackgroundColor3 = Color3.fromRGB(160, 10, 10)
+	end
+end
+
+-- hook to character humanoid
+local function connectHealthBar(character)
+	local humanoid = character:WaitForChild("Humanoid")
+	updateHealthBar(humanoid.Health, humanoid.MaxHealth)
+	humanoid.HealthChanged:Connect(function(hp)
+		updateHealthBar(hp, humanoid.MaxHealth)
+	end)
+end
+
+player.CharacterAdded:Connect(connectHealthBar)
+if player.Character then connectHealthBar(player.Character) end
+
+-- ── FALL BACK BOSS ALERT ──────────────────────────────────────────────────────
+local alertFrame = Instance.new("Frame")
+alertFrame.Size             = UDim2.new(1, 0, 1, 0)
+alertFrame.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+alertFrame.BackgroundTransparency = 1
+alertFrame.ZIndex           = 50
+alertFrame.Visible          = false
+alertFrame.Parent           = screenGui
+
+local alertText = Instance.new("TextLabel")
+alertText.Size               = UDim2.new(0, 600, 0, 100)
+alertText.Position           = UDim2.new(0.5, -300, 0.35, 0)
+alertText.BackgroundTransparency = 1
+alertText.Text               = "☠  FALL BACK  ☠"
+alertText.TextColor3         = Color3.fromRGB(255, 50, 50)
+alertText.TextScaled         = true
+alertText.Font               = Enum.Font.GothamBold
+alertText.ZIndex             = 51
+alertText.Parent             = alertFrame
+
+local alertSub = Instance.new("TextLabel")
+alertSub.Size               = UDim2.new(0, 500, 0, 50)
+alertSub.Position           = UDim2.new(0.5, -250, 0.35, 105)
+alertSub.BackgroundTransparency = 1
+alertSub.Text               = "G-MAN HAS ARRIVED"
+alertSub.TextColor3         = Color3.fromRGB(255, 200, 200)
+alertSub.TextScaled         = true
+alertSub.Font               = Enum.Font.Gotham
+alertSub.ZIndex             = 51
+alertSub.Parent             = alertFrame
+
+local alertBossBar = Instance.new("Frame")
+alertBossBar.Size             = UDim2.new(0, 400, 0, 30)
+alertBossBar.Position         = UDim2.new(0.5, -200, 0.35, 165)
+alertBossBar.BackgroundColor3 = Color3.fromRGB(0, 100, 220)
+alertBossBar.BackgroundTransparency = 0.3
+alertBossBar.ZIndex           = 51
+alertBossBar.Parent           = alertFrame
+Instance.new("UICorner", alertBossBar).CornerRadius = UDim.new(0, 8)
+
+local alertBossText = Instance.new("TextLabel")
+alertBossText.Size               = UDim2.new(1, 0, 1, 0)
+alertBossText.BackgroundTransparency = 1
+alertBossText.Text               = "⚠  BOSS ENEMY  ⚠"
+alertBossText.TextColor3         = Color3.new(1, 1, 1)
+alertBossText.TextScaled         = true
+alertBossText.Font               = Enum.Font.GothamBold
+alertBossText.ZIndex             = 52
+alertBossText.Parent             = alertBossBar
+
+local alertActive = false
+local function showFallBackAlert()
+	if alertActive then return end
+	alertActive = true
+	alertFrame.Visible = true
+	-- red border flash
+	TweenService:Create(alertFrame,
+		TweenInfo.new(0.2, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, 4, true),
+		{BackgroundTransparency = 0.7}
+	):Play()
+	-- text pulse
+	TweenService:Create(alertText,
+		TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 3, true),
+		{TextColor3 = Color3.fromRGB(255, 255, 100)}
+	):Play()
+	task.delay(3.5, function()
+		TweenService:Create(alertFrame,
+			TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{BackgroundTransparency = 1}
+		):Play()
+		TweenService:Create(alertText,
+			TweenInfo.new(0.6),
+			{TextTransparency = 1}
+		):Play()
+		TweenService:Create(alertSub,
+			TweenInfo.new(0.6),
+			{TextTransparency = 1}
+		):Play()
+		TweenService:Create(alertBossBar,
+			TweenInfo.new(0.6),
+			{BackgroundTransparency = 1}
+		):Play()
+		task.wait(0.7)
+		alertFrame.Visible = false
+		alertText.TextTransparency = 0
+		alertSub.TextTransparency = 0
+		alertBossBar.BackgroundTransparency = 0.3
+		alertActive = false
+	end)
+end
+
+bossSpawned.OnClientEvent:Connect(showFallBackAlert)
 
 -- ── SHOP FRAME ────────────────────────────────────────────────────────────────
 local shopFrame = Instance.new("Frame")
@@ -360,6 +548,7 @@ rowBtns[1].MouseButton1Click:Connect(function()
 	lobbyFrame.Visible = true
 	hudFrame.Visible = false
 	tokenBar.Visible = false
+	hpBarFrame.Visible = false
 	settingsBtn.Visible = false
 	camera.CameraType = Enum.CameraType.Custom
 end)
@@ -390,6 +579,7 @@ local function startGame()
 	lobbyFrame.Visible = false
 	hudFrame.Visible = true
 	tokenBar.Visible = true
+	hpBarFrame.Visible = true
 	settingsBtn.Visible = true
 	camera.CameraType = Enum.CameraType.Custom
 	gameStarted:FireServer()

@@ -19,6 +19,7 @@ local buyMorph        = makeEvent("BuyMorph")
 local equipMorph      = makeEvent("EquipMorph")
 local morphConfirmed  = makeEvent("MorphConfirmed")
 local returnToLobby   = makeEvent("ReturnToLobby")
+local bossSpawned     = makeEvent("BossSpawned")
 
 print("[WaveManager] RemoteEvents created")
 
@@ -63,6 +64,20 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	playerTokens[player] = nil
 end)
+
+-- ── Player 1000 HP ────────────────────────────────────────────────────────────
+local function setupPlayerHealth(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid")
+		humanoid.MaxHealth = 1000
+		humanoid.Health    = 1000
+	end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	setupPlayerHealth(player)
+end
+Players.PlayerAdded:Connect(setupPlayerHealth)
 
 -- ── Models ────────────────────────────────────────────────────────────────────
 -- IMPORTANT: these names must EXACTLY match what's in ServerStorage
@@ -213,6 +228,7 @@ local function startGame(player)
 			-- spawn GMAN enemies
 			for i = 1, (waveData.gman or 0) do
 				spawnToilet(gmanModel, randomSpawnCF())
+				bossSpawned:FireAllClients()   -- triggers FALL BACK alert
 				task.wait(0.8)
 			end
 
