@@ -250,7 +250,8 @@ local function goLobby()
 	inLobby = true
 	lobbyBg.Visible = true hud.Visible = false tokenBar.Visible = false
 	hpBar.Visible = false settingsBtn.Visible = false settingsPanel.Visible = false
-	camera.CameraType = Enum.CameraType.Custom
+	camera.CameraType = Enum.CameraType.Scriptable
+	camera.CFrame = CFrame.lookAt(Vector3.new(math.cos(camAngle)*30,15,math.sin(camAngle)*30),Vector3.new(0,5,0))
 end
 local function goGame()
 	inLobby = false
