@@ -20,11 +20,6 @@ local morphConfirmed = makeEvent("MorphConfirmed")
 local returnToLobby  = makeEvent("ReturnToLobby")
 local bossSpawned    = makeEvent("BossSpawned")
 
--- Disable default Roblox health regen for all future spawns
-local StarterCharacterScripts = game:GetService("StarterCharacterScripts")
-local defaultRegenScript = StarterCharacterScripts:FindFirstChild("Health")
-if defaultRegenScript then defaultRegenScript:Destroy() end
-
 -- GameData
 local gameData = ReplicatedStorage:FindFirstChild("GameData")
 if not gameData then
