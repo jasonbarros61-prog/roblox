@@ -272,7 +272,7 @@ rowBtns[1].MouseButton1Click:Connect(function()
 end)
 
 -- ─── LOOPS ────────────────────────────────────────────────────────────────────
-RunService.Heartbeat:Connect(function(dt)
+RunService:BindToRenderStep("LobbyCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	if not inLobby then return end
 	camAngle = camAngle + dt * 0.4
 	camera.CameraType = Enum.CameraType.Scriptable
